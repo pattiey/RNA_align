@@ -1,0 +1,8 @@
+DATA_DIRECTORY: '/Users/pattieye/ncbi/public/sra'
+OUTDIR: '/Users/pattieye/Documents/2022W/RKG/CD8_stress_test_out'
+SAMPLE: ["SRR9670112"]
+
+GENOME_DIR: '/Users/pattieye/Documents/2022W/YPP/RNA_align/star_Index/'
+
+OUTPUT_SAM_TYPE: 'BAM'
+OUTPUT_SORT: 'SortedByCoordinate'

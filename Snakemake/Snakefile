@@ -1,0 +1,81 @@
+import os
+import re
+
+DATA_DIRECTORY = config['DATA_DIRECTORY']
+OUTDIR = config['OUTDIR']
+LOG_DIR = os.path.join(OUTDIR, 'log')
+SAMPLE = config['SAMPLE']
+
+# REF_GENOME = config['REF_GENOME']
+GENOME_DIR = config['GENOME_DIR']
+
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+for sample in SAMPLE:
+    sample_outdir = os.path.join(OUTDIR, sample)
+    if not os.path.exists(sample_outdir):
+        os.makedirs(sample_outdir)
+
+rule all:
+    input:
+        expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE),
+        expand(os.path.join(OUTDIR, "{sample}", "{sample}_1_fastqc.html"), sample = SAMPLE)
+
+rule prefetch_sra:
+    output:
+        os.path.join(DATA_DIRECTORY, "{sample}.sra")
+    shell:
+        "prefetch {wildcards.sample}"
+
+
+rule sra_to_fastq:
+    input:
+        os.path.join(DATA_DIRECTORY, "{sample}.sra")
+    output:
+        os.path.join(OUTDIR, "{sample}","{sample}_1.fastq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz")
+    shell:
+        "fastq-dump --gzip --outdir {OUTDIR}/{wildcards.sample} --split-files {input}"
+
+rule fastqc:
+    input:
+        os.path.join(OUTDIR, "{sample}","{sample}_1.fastq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz")
+    output:
+        os.path.join(OUTDIR, "{sample}", "{sample}_1_fastqc.html"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2_fastqc.html"),
+    shell:
+        "fastqc --outdir {OUTDIR}/{wildcards.sample} {input}"
+
+rule trim_galore:
+    input:
+        os.path.join(OUTDIR, "{sample}","{sample}_1.fastq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz")
+    output:
+        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq.gz"),
+    shell:
+        "trim_galore --illumina -o {OUTDIR}/{wildcards.sample} {input}"
+
+rule gunzip_fastq:
+    input:
+        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq.gz"),
+    output:
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq")),
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq")),
+    shell:
+        "gunzip -k {input}"
+
+rule star_align:
+    input:
+        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq")
+    output:
+        os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam")
+    shell:
+        "STAR --outputFileNamePrefix {OUTDIR}/{wildcards.sample}/ "
+        "--outSAMtype {config[OUTPUT_SAM_TYPE]} {config[OUTPUT_SORT]} "
+        "--genomeDir {GENOME_DIR} "
+        "--readFilesIn {input}"
