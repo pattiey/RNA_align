@@ -19,8 +19,9 @@ for sample in SAMPLE:
 
 rule all:
     input:
-        expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE)
-
+        os.path.join(OUTDIR, "pca.png"),
+        os.path.join(OUTDIR, "clustering.csv")
+        
 # download mm10 reference genome from ENCODE
 rule get_reference_fasta:
     output:
@@ -74,19 +75,19 @@ rule sra_to_fastq:
 
 rule gunzip_fastq:
     input:
-        os.path.join(OUTDIR, "{sample}", "{sample}_1.fq.gz"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2.fq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_1.fastq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz"),
     output:
-        temp(os.path.join(OUTDIR, "{sample}", "{sample}_1.fq")),
-        temp(os.path.join(OUTDIR, "{sample}", "{sample}_2.fq")),
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_1.fastq")),
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq")),
     shell:
         "gunzip -k {input}"
 
 rule star_align:
     input:
-        read1 = os.path.join(OUTDIR, "{sample}", "{sample}_1.fq"),
-        read2 = os.path.join(OUTDIR, "{sample}", "{sample}_2.fq"),
-        os.path.join(GENOME_DIR, "Log.out")
+        read1 = os.path.join(OUTDIR, "{sample}", "{sample}_1.fastq"),
+        read2 = os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq"),
+        log = os.path.join(GENOME_DIR, "Log.out")
     output:
         os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam")
     threads: 4
@@ -101,7 +102,7 @@ rule PCA_clustering:
     input:
         expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE)
     output:
-        os.path.join(OUTDIR, "pca.png")
+        os.path.join(OUTDIR, "pca.png"),
         os.path.join(OUTDIR, "clustering.csv")
     script:
         "scripts/pca_clustering.R"

@@ -1,16 +1,16 @@
 DATA_DIRECTORY: '/Users/pattieye/ncbi/public/sra'
 OUTDIR: '/Users/pattieye/Documents/2022W/RKG/CD8_stress_test_out'
 SAMPLES: ["SRR9670112",
-  "SRR9670113",
-  "SRR9670114",
-  "SRR9670115",
-  "SRR9670116",
-  "SRR9670117",
-  "SRR9670118",
-  "SRR9670119",
-  "SRR9670120",
-  "SRR9670121",
-  "SRR9670122",
+  # "SRR9670113",
+  # "SRR9670114",
+  # "SRR9670115",
+  # "SRR9670116",
+  # "SRR9670117",
+  # "SRR9670118",
+  # "SRR9670119",
+  # "SRR9670120",
+  # "SRR9670121",
+  # "SRR9670122",
   "SRR9670123"]
 
 REFERENCE_FASTA: "https://www.encodeproject.org/files/mm10_no_alt_analysis_set_ENCODE/@@download/mm10_no_alt_analysis_set_ENCODE.fasta.gz"
