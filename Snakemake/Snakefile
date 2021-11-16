@@ -4,9 +4,9 @@ import re
 DATA_DIRECTORY = config['DATA_DIRECTORY']
 OUTDIR = config['OUTDIR']
 LOG_DIR = os.path.join(OUTDIR, 'log')
-SAMPLE = config['SAMPLE']
+SAMPLE = config['SAMPLES']
+REFERENCE_DIR = config['REFERENCE_DIR']
 
-# REF_GENOME = config['REF_GENOME']
 GENOME_DIR = config['GENOME_DIR']
 
 if not os.path.exists(LOG_DIR):
@@ -19,15 +19,49 @@ for sample in SAMPLE:
 
 rule all:
     input:
-        expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE),
-        expand(os.path.join(OUTDIR, "{sample}", "{sample}_1_fastqc.html"), sample = SAMPLE)
+        expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE)
+
+# download mm10 reference genome from ENCODE
+rule get_reference_fasta:
+    output:
+        os.path.join(REFERENCE_DIR, "mm10_no_alt_analysis_set_ENCODE.fasta.gz")
+    shell:
+        "wget {config['REFERENCE_FASTA']} --output-document {output}"
+
+# download mm10 reference genome annotation from ENCODE
+rule get_reference_gtf:
+    output:
+        os.path.join(REFERENCE_DIR, "ENCFF871VGR.gtf.gz")
+    shell:
+        "wget {config[REFERENCE_GTF]} --output-document {output}"
+
+rule gunzip_reference:
+    input:
+        os.path.join(REFERENCE_DIR, "mm10_no_alt_analysis_set_ENCODE.fasta.gz"),
+        os.path.join(REFERENCE_DIR, "ENCFF871VGR.gtf.gz")
+    output:
+        os.path.join(REFERENCE_DIR, "mm10_no_alt_analysis_set_ENCODE.fasta"),
+        os.path.join(REFERENCE_DIR, "ENCFF871VGR.gtf")
+
+rule index_reference:
+    input:
+        fasta = os.path.join(REFERENCE_DIR, "mm10_no_alt_analysis_set_ENCODE.fasta"),
+        gtf = os.path.join(REFERENCE_DIR, "ENCFF871VGR.gtf")
+    output:
+        os.path.join(GENOME_DIR, "Log.out")
+    threads: 4
+    shell:
+        "STAR --runThreadN {threads} "
+        "--runMode genomeGenerate "
+        "--genomeDir {GENOME_DIR} "
+        "--genomeFastaFiles {input.fasta} "
+        "--sjdbGTFfile {input.gtf}"
 
 rule prefetch_sra:
     output:
         os.path.join(DATA_DIRECTORY, "{sample}.sra")
     shell:
         "prefetch {wildcards.sample}"
-
 
 rule sra_to_fastq:
     input:
@@ -38,44 +72,36 @@ rule sra_to_fastq:
     shell:
         "fastq-dump --gzip --outdir {OUTDIR}/{wildcards.sample} --split-files {input}"
 
-rule fastqc:
-    input:
-        os.path.join(OUTDIR, "{sample}","{sample}_1.fastq.gz"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz")
-    output:
-        os.path.join(OUTDIR, "{sample}", "{sample}_1_fastqc.html"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2_fastqc.html"),
-    shell:
-        "fastqc --outdir {OUTDIR}/{wildcards.sample} {input}"
-
-rule trim_galore:
-    input:
-        os.path.join(OUTDIR, "{sample}","{sample}_1.fastq.gz"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2.fastq.gz")
-    output:
-        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq.gz"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq.gz"),
-    shell:
-        "trim_galore --illumina -o {OUTDIR}/{wildcards.sample} {input}"
-
 rule gunzip_fastq:
     input:
-        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq.gz"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_1.fq.gz"),
+        os.path.join(OUTDIR, "{sample}", "{sample}_2.fq.gz"),
     output:
-        temp(os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq")),
-        temp(os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq")),
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_1.fq")),
+        temp(os.path.join(OUTDIR, "{sample}", "{sample}_2.fq")),
     shell:
         "gunzip -k {input}"
 
 rule star_align:
     input:
-        os.path.join(OUTDIR, "{sample}", "{sample}_1_trimmed.fq"),
-        os.path.join(OUTDIR, "{sample}", "{sample}_2_trimmed.fq")
+        read1 = os.path.join(OUTDIR, "{sample}", "{sample}_1.fq"),
+        read2 = os.path.join(OUTDIR, "{sample}", "{sample}_2.fq"),
+        os.path.join(GENOME_DIR, "Log.out")
     output:
         os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam")
+    threads: 4
     shell:
-        "STAR --outputFileNamePrefix {OUTDIR}/{wildcards.sample}/ "
+        "STAR --runThreadN {threads} "
+        "--outputFileNamePrefix {OUTDIR}/{wildcards.sample}/ "
         "--outSAMtype {config[OUTPUT_SAM_TYPE]} {config[OUTPUT_SORT]} "
         "--genomeDir {GENOME_DIR} "
-        "--readFilesIn {input}"
+        "--readFilesIn {input.read1} {input.read2}"
+
+rule PCA_clustering:
+    input:
+        expand(os.path.join(OUTDIR, "{sample}", "Aligned.sortedByCoord.bam"), sample = SAMPLE)
+    output:
+        os.path.join(OUTDIR, "pca.png")
+        os.path.join(OUTDIR, "clustering.csv")
+    script:
+        "scripts/pca_clustering.R"
